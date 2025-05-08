@@ -1,0 +1,32 @@
+{
+  "connectivity_patterns": [
+    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*CORE_INDICATION_DISASSOCIATION", "status": "disconnected"},
+    {"pattern": "(\\d{2}/\\d{2}/\\d{4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*(?<!DE)AUTH_REQ - sent to:", "status": "auth_req"},
+    {"pattern": "(\\d{2}/\\d{2}/\\d{4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*AUTH_RSP - received  from:", "status": "auth_rsp"},
+    {"pattern": "(\\d{2}/\\d{2}/\\d{4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*Link switching from band", "status": "link_switch_start"},
+    {"pattern": "(\\d{2}/\\d{2}/\\d{4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*Roam Completed - Link switched", "status": "link_switch_end"},
+    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*WDI_IND_ASSOC_RESULT - WDI_ASSOC_STATUS_SUCCESS", "status": "associated"},
+    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*WDI_IND_ASSOC_RESULT - (?!WDI_ASSOC_STATUS_SUCCESS\\b)WDI_ASSOC_STATUS_[A-Z_]+", "status": "connection_failed"},
+    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*DEAUTH_REQ - sent", "status": "Deauth by Driver"},
+    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*DEAUTH - received", "status": "Deauth from Peer"},
+    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*CONNECTION FAILED", "status": "connect_failure"},
+    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*SUSPEND FLOW FINISHED", "status": "suspend"},
+	{"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*RESUME FLOW FINISHED", "status": "resume"},
+    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*\\[ATTEMPT_TO_CONNECT\\]", "status": "Attempt_to_connect"},
+    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*ENCRYPTION READY!!! - For control flows only", "status": "connected"}
+  ],
+  "info_patterns": [
+    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*Consecutive missed beacons\\s+\\(9\\)", "status": "info","name":"missed beacons"},
+	{"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*MisbehavingAP:5", "status": "info","name":"MisbehavingAP"},
+	{"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*Found channel switch announcement", "status": "info","name":"CSA"},
+	{"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*FATAL_ERROR: uCode ASSERT", "status": "info","name":"FW assert"},
+	{"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*uCode is alive", "status": "info","name":"uCode alive"},
+    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*INDICATION_ROAM_COMPLETE", "status": "info","name":"roam complete"},
+    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*indicating roaming needed", "status": "info","name":"roaming is needed"}
+  ],
+  "mac_patterns": [
+    "\\|\\s*\\d+\\s*\\|\\s*\\d\\s*\\|\\s*\\d\\s*\\|\\s*BSS\\s*\\|\\s*LINK\\s*\\|\\s*Address\\((\\w{2}:\\w{2}:\\w{2}:\\w{2}:\\w{2}:\\w{2})\\)",
+    "\\|\\s*\\d+\\\\s*\\|\\s*\\d+\\s*\\|\\s*(\\w+)\\s*\\|\\s*(\\w+)\\s*\\|\\s*BSS\\s*\\|\\s*LINK\\s*\\|\\s*Address\\((\\w{2}:\\w{2}:\\w{2}:\\w{2}:\\w{2}:\\w{2})\\)",
+    "\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3} \\[core\\s+\\] \\[AP_SELECTION\\] \\[S\\] \\[\\d+\\] \\[prvhApSelectionPrintBestCandidate\\] \\[BC 0\\]: grade:\\d+ band:\\d+, channel:\\d+, BW:\\d+MHz, mode:<NULL>, RSSI:-\\d+, tput:\\d+ Address\\((?P<mac>[0-9A-F:]{17})\\)"
+  ]
+}
