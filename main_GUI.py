@@ -29,6 +29,7 @@ beacon_rx_pattern = re.compile(
 )
 
 # Function to parse the log file
+# Function to parse the log file
 def parse_log(log_path, start_line, end_line):
     events = []  # List to store parsed events
     mac_info = {}  # Dictionary to store MAC information
@@ -79,12 +80,19 @@ def parse_log(log_path, start_line, end_line):
                 timestamp = datetime.strptime(match.group(1), "%m/%d/%Y-%H:%M:%S.%f")
                 mac = current_y
 
+                # Extract RSSI value for "Attempt to connect" events
+                rssi_value = None
+                if pattern["status"] == "Attempt_to_connect":
+                    rssi_match = re.search(r"Rssi:(-?\d+)", line)
+                    if rssi_match:
+                        rssi_value = rssi_match.group(1)
+
                 if not any(e["timestamp"] == timestamp and e["pattern"].startswith(f"Line {line_number}:") for e in events):
                     current_y = "disconnected" if mac is None or pattern["status"] == "disconnected" or pattern["status"] == "connection_failed" else mac
-                    event_details = [timestamp, pattern['status'], f"Line {line_number}: {line.strip()}", mac, current_y]
+                    event_details = [timestamp, pattern['status'], f"Line {line_number}: {line.strip()}", mac, current_y, rssi_value]
                     discovered_patterns.append(event_details)
                     events.append(
-                        {"timestamp": timestamp, "status": pattern["status"], "pattern": f"Line {line_number}: {line.strip()}", "mac": mac, "y": current_y})
+                        {"timestamp": timestamp, "status": pattern["status"], "pattern": f"Line {line_number}: {line.strip()}", "mac": mac, "y": current_y, "rssi": rssi_value})
 
         # Check for info patterns in the line
         for pattern in info_patterns:
@@ -96,7 +104,9 @@ def parse_log(log_path, start_line, end_line):
                     discovered_patterns.append(event_details)
                     events.append(
                         {"timestamp": timestamp, "status": pattern["status"], "pattern": f"Line {line_number}: {line.strip()}", "mac": current_y, "y": current_y, "name": pattern["name"]})
-
+    #print(f"discovered_patterns:{discovered_patterns}")
+    #print(f"scanned lines:{scanned_lines}")
+    #print(f"events:{events}")
     return events, mac_addresses, mac_info, discovered_patterns, scanned_lines
 
 # Function to create a timeline visualization using Plotly
@@ -112,6 +122,7 @@ def create_timeline(events, mac_addresses, mac_info):
     connectivity_hover_texts = []
     connectivity_symbols = []
     connectivity_line_styles = []
+    connectivity_rssi_texts = []  # New list to store RSSI text
 
     info_x_values = [[] for _ in info_patterns]
     info_y_values = [[] for _ in info_patterns]
@@ -130,6 +141,8 @@ def create_timeline(events, mac_addresses, mac_info):
         status = event["status"]
         pattern = event["pattern"]
         y = y_positions[event["y"]]
+        rssi_text = event.get("rssi", None) if status == "Attempt_to_connect" else ""  # Only add RSSI text for "Attempt_to_connect"
+
 
         # Handle info events separately
         if status == "info":
@@ -152,6 +165,7 @@ def create_timeline(events, mac_addresses, mac_info):
         connectivity_x_values.append(timestamp)
         connectivity_y_values.append(y)
         connectivity_hover_texts.append(pattern)
+        connectivity_rssi_texts.append(f"RSSI: {rssi_text}" if rssi_text else "")  # Add RSSI text
 
         connectivity_symbols.append('circle')
         if status == "disconnected" or status == "connection_failed":
@@ -203,25 +217,43 @@ def create_timeline(events, mac_addresses, mac_info):
     # Create a Plotly figure for visualization
     fig = go.Figure()
 
-    # Add connectivity event traces to the figure
-    for i in range(len(connectivity_x_values) - 1):
-        line_style = 'solid'
-        for start, end in suspend_resume_pairs:
-            if start <= connectivity_x_values[i] < end:
-                line_style = 'dash'
-                break
 
-        fig.add_trace(go.Scatter(
-            x=[connectivity_x_values[i], connectivity_x_values[i + 1]],
-            y=[connectivity_y_values[i], connectivity_y_values[i + 1]],
-            mode='lines+markers',
-            marker=dict(color=connectivity_colors[i], symbol=connectivity_symbols[i]),
-            line=dict(shape='hv', dash=line_style),
-            hovertext=connectivity_hover_texts[i],
-            hoverinfo="text",
-            name='Connectivity Events',
-            showlegend=False
-        ))
+    # Add connectivity event traces to the figure
+    for i in range(len(connectivity_x_values)):
+        if i < len(connectivity_x_values) - 1:
+            line_style = 'solid'
+            for start, end in suspend_resume_pairs:
+                if start <= connectivity_x_values[i] < end:
+                    line_style = 'dash'
+                    break
+
+            fig.add_trace(go.Scatter(
+                x=[connectivity_x_values[i], connectivity_x_values[i + 1]],
+                y=[connectivity_y_values[i], connectivity_y_values[i + 1]],
+                mode='lines+markers+text',
+                marker=dict(color=connectivity_colors[i], symbol=connectivity_symbols[i]),
+                line=dict(shape='hv', dash=line_style),
+                hovertext=connectivity_hover_texts[i],
+                hoverinfo="text",
+                text=[connectivity_rssi_texts[i],""],  # Add RSSI text
+                textposition="top center",  # Position RSSI text above the point
+                name='Connectivity Events',
+                showlegend=False
+            ))
+        else:
+            # Handle the last point separately if needed
+            fig.add_trace(go.Scatter(
+                x=[connectivity_x_values[i]],
+                y=[connectivity_y_values[i]],
+                mode='markers+text',
+                marker=dict(color=connectivity_colors[i], symbol=connectivity_symbols[i]),
+                hovertext=connectivity_hover_texts[i],
+                hoverinfo="text",
+                text=[connectivity_rssi_texts[i],""],  # Add RSSI text
+                textposition="top center",  # Position RSSI text above the point
+                name='Connectivity Events',
+                showlegend=False
+            ))
 
     # Add info event traces to the figure
     for i, info_pattern in enumerate(info_patterns):
@@ -442,6 +474,7 @@ def main():
     app = QApplication(sys.argv)
     window = LogAnalyzerApp(initial_log_path)
     window.show()
+
     sys.exit(app.exec_())
 
 # Entry point of the script

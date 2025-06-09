@@ -70,12 +70,23 @@ def parse_log(log_path, start_line, end_line):
                 timestamp = datetime.strptime(match.group(1), "%m/%d/%Y-%H:%M:%S.%f")
                 mac = current_y
 
-                if not any(e["timestamp"] == timestamp and e["pattern"].startswith(f"Line {line_number}:") for e in events):
-                    current_y = "disconnected" if mac is None or pattern["status"] == "disconnected" or pattern["status"] == "connection_failed" else mac
-                    event_details = [timestamp, pattern['status'], f"Line {line_number}: {line.strip()}", mac, current_y]
+                rssi_value = None
+                if pattern["status"] == "Attempt_to_connect":
+                    rssi_match = re.search(r"Rssi:(-?\d+)", line)
+                    if rssi_match:
+                        rssi_value = rssi_match.group(1)
+
+                if not any(e["timestamp"] == timestamp and e["pattern"].startswith(f"Line {line_number}:") for e in
+                           events):
+                    current_y = "disconnected" if mac is None or pattern["status"] == "disconnected" or pattern[
+                        "status"] == "connection_failed" else mac
+                    event_details = [timestamp, pattern['status'], f"Line {line_number}: {line.strip()}", mac,
+                                     current_y, rssi_value]
                     discovered_patterns.append(event_details)
                     events.append(
-                        {"timestamp": timestamp, "status": pattern["status"], "pattern": f"Line {line_number}: {line.strip()}", "mac": mac, "y": current_y})
+                        {"timestamp": timestamp, "status": pattern["status"],
+                         "pattern": f"Line {line_number}: {line.strip()}", "mac": mac, "y": current_y,
+                         "rssi": rssi_value})
 
         for pattern in info_patterns:
             match = re.search(pattern["pattern"], line)
@@ -89,6 +100,7 @@ def parse_log(log_path, start_line, end_line):
 
     return events, mac_addresses, mac_info, discovered_patterns, scanned_lines
 
+
 def create_timeline(events, mac_addresses, mac_info):
     y_labels = ["disconnected"] + [mac for _, mac in mac_addresses]
     y_positions = {label: i for i, label in enumerate(y_labels)}
@@ -99,6 +111,7 @@ def create_timeline(events, mac_addresses, mac_info):
     connectivity_hover_texts = []
     connectivity_symbols = []
     connectivity_line_styles = []
+    connectivity_rssi_texts = []
 
     info_x_values = [[] for _ in info_patterns]
     info_y_values = [[] for _ in info_patterns]
@@ -108,7 +121,6 @@ def create_timeline(events, mac_addresses, mac_info):
 
     suspend_resume_pairs = []
 
-    # Track timestamps for vertical lines
     vertical_line_timestamps = []
 
     for event in events:
@@ -116,6 +128,9 @@ def create_timeline(events, mac_addresses, mac_info):
         status = event["status"]
         pattern = event["pattern"]
         y = y_positions[event["y"]]
+
+        # Only add RSSI text for "Attempt_to_connect" events
+        rssi_text = f"RSSI: {event.get('rssi', '')}" if status == "Attempt_to_connect" else ""
 
         if status == "info":
             for i, info_pattern in enumerate(info_patterns):
@@ -125,18 +140,17 @@ def create_timeline(events, mac_addresses, mac_info):
                     info_hover_texts[i].append(pattern)
             continue
 
-        # Check for "Driver disable" events to add vertical lines
         if status == "Driver disable":
             connectivity_symbols.append('diamond')
             vertical_line_timestamps.append(timestamp)
         elif status == "uCode alive":
             connectivity_symbols.append('diamond')
-
             vertical_line_timestamps.append(timestamp)
 
         connectivity_x_values.append(timestamp)
         connectivity_y_values.append(y)
         connectivity_hover_texts.append(pattern)
+        connectivity_rssi_texts.append(rssi_text)  # Add RSSI text only for "Attempt_to_connect"
 
         connectivity_symbols.append('circle')
         if status == "disconnected" or status == "connection_failed":
@@ -187,43 +201,46 @@ def create_timeline(events, mac_addresses, mac_info):
 
     fig = go.Figure()
 
-    for i in range(len(connectivity_x_values) - 1):
-        line_style = 'solid'
-        for start, end in suspend_resume_pairs:
-            if start <= connectivity_x_values[i] < end:
-                line_style = 'dash'
-                break
+    for i in range(len(connectivity_x_values)):
+        if i < len(connectivity_x_values) - 1:
+            line_style = 'solid'
+            for start, end in suspend_resume_pairs:
+                if start <= connectivity_x_values[i] < end:
+                    line_style = 'dash'
+                    break
 
-        fig.add_trace(go.Scatter(
-            x=[connectivity_x_values[i], connectivity_x_values[i + 1]],
-            y=[connectivity_y_values[i], connectivity_y_values[i + 1]],
-            mode='lines+markers',
-            marker=dict(color=connectivity_colors[i], symbol=connectivity_symbols[i]),
-            line=dict(shape='hv', dash=line_style),
-            hovertext=connectivity_hover_texts[i],
-            hoverinfo="text",
-            name='Connectivity Events',
-            showlegend=False
-        ))
+            fig.add_trace(go.Scatter(
+                x=[connectivity_x_values[i], connectivity_x_values[i + 1]],
+                y=[connectivity_y_values[i], connectivity_y_values[i + 1]],
+                mode='lines+markers+text',
+                marker=dict(color=connectivity_colors[i], symbol=connectivity_symbols[i]),
+                line=dict(shape='hv', dash=line_style),
+                hovertext=connectivity_hover_texts[i],
+                hoverinfo="text",
+                text=[connectivity_rssi_texts[i], ""],  # RSSI text only for the first point
+                textposition="top center",
+                name='Connectivity Events',
+                showlegend=False
+            ))
 
-    for i, info_pattern in enumerate(info_patterns):
-        fig.add_trace(go.Scatter(
-            x=info_x_values[i],
-            y=info_y_values[i],
-            mode='markers',
-            marker=dict(color='black', symbol=info_symbols[i % len(info_symbols)]),
-            hovertext=info_hover_texts[i],
-            hoverinfo="text",
-            name=f'Info Events: {info_pattern["name"]}',
-            visible=True,
-            showlegend=True
-        ))
+        else:
+            fig.add_trace(go.Scatter(
+                x=[connectivity_x_values[i]],
+                y=[connectivity_y_values[i]],
+                mode='markers+text',
+                marker=dict(color=connectivity_colors[i], symbol=connectivity_symbols[i]),
+                hovertext=connectivity_hover_texts[i],
+                hoverinfo="text",
+                text=connectivity_rssi_texts[i],  # RSSI text is only added for "Attempt_to_connect"
+                textposition="top center",
+                name='Connectivity Events',
+                showlegend=False
+            ))
 
-    # Add vertical lines for "Driver disable" events
     for timestamp in vertical_line_timestamps:
         fig.add_shape(type="line",
                       x0=timestamp, x1=timestamp,
-                      y0=0, y1=-0.1,  # Extend the line below the "disconnected" level
+                      y0=0, y1=-0.1,
                       line=dict(color="black", width=2))
 
     fig.update_layout(
@@ -288,13 +305,15 @@ def create_timeline(events, mac_addresses, mac_info):
         )
     )
 
-    fig.write_html('wifi_connectivity_timeline.html', auto_open=True, include_plotlyjs='cdn', full_html=False, config={'scrollZoom': True})
+    fig.write_html('wifi_connectivity_timeline.html', auto_open=True, include_plotlyjs='cdn', full_html=False,
+                   config={'scrollZoom': True})
 
     return fig
 
 def main():
     debug_mode = '-d' in sys.argv
-    lines_mode = '-l' in sys.argv
+    #lines_mode = '-l' in sys.argv
+    lines_mode = 1
 
     while True:
         if len(sys.argv) > 1:
