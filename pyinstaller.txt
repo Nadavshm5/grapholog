@@ -1,0 +1,1 @@
+pyinstaller --icon=magnifier.png --name=Grapholog --add-data "TextAnalysisTool.NET.exe;." --add-data "patterns.json;." --add-data "roi.tat;." --add-data "magnifier.png;." --noconsole main_Gui.py
