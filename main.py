@@ -33,6 +33,7 @@ def parse_log(log_path, start_line, end_line):
     current_y = "disconnected"
     discovered_patterns = []
     scanned_lines = []
+    last_log_timestamp = None
 
     with open(log_path, 'r') as file:
         lines = file.readlines()[start_line:end_line]
@@ -40,20 +41,21 @@ def parse_log(log_path, start_line, end_line):
     for line_number, line in enumerate(lines, start=start_line):
         scanned_lines.append((line_number, line.strip()))
 
+        timestamp_match = re.search(r"(\d{2}/\d{2}/\d{2,4}-\d{2}:\d{2}:\d{2}\.\d{3})", line)
+        if timestamp_match:
+            last_log_timestamp = datetime.strptime(timestamp_match.group(1), "%m/%d/%Y-%H:%M:%S.%f")
+
         for pattern in mac_patterns:
             match = pattern.search(line)
             if match:
-                timestamp_match = re.search(r"(\d{2}/\d{2}/\d{2,4}-\d{2}:\d{2}:\d{2}\.\d{3})", line)
-                if timestamp_match:
-                    timestamp = datetime.strptime(timestamp_match.group(1), "%m/%d/%Y-%H:%M:%S.%f")
-                    mac = match.group(1)
-                    mac_event_details = [timestamp, "MAC Address Detected", f"Line {line_number}: {line.strip()}", mac,
-                                         current_y, "MAC Address"]
-                    discovered_patterns.append(mac_event_details)
-                    mac_addresses = [(ts, m) for ts, m in mac_addresses if m != mac]
-                    mac_addresses.append((timestamp, mac))
+                mac = match.group(1)
+                mac_event_details = [last_log_timestamp, "MAC Address Detected", f"Line {line_number}: {line.strip()}", mac,
+                                     current_y, "MAC Address"]
+                discovered_patterns.append(mac_event_details)
+                mac_addresses = [(ts, m) for ts, m in mac_addresses if m != mac]
+                mac_addresses.append((last_log_timestamp, mac))
 
-                    current_y = mac
+                current_y = mac
 
         match = beacon_rx_pattern.search(line)
         if match:
@@ -76,17 +78,12 @@ def parse_log(log_path, start_line, end_line):
                     if rssi_match:
                         rssi_value = rssi_match.group(1)
 
-                if not any(e["timestamp"] == timestamp and e["pattern"].startswith(f"Line {line_number}:") for e in
-                           events):
-                    current_y = "disconnected" if mac is None or pattern["status"] == "disconnected" or pattern[
-                        "status"] == "connection_failed" else mac
-                    event_details = [timestamp, pattern['status'], f"Line {line_number}: {line.strip()}", mac,
-                                     current_y, rssi_value]
+                if not any(e["timestamp"] == timestamp and e["pattern"].startswith(f"Line {line_number}:") for e in events):
+                    current_y = "disconnected" if mac is None or pattern["status"] == "disconnected" or pattern["status"] == "connection_failed" else mac
+                    event_details = [timestamp, pattern['status'], f"Line {line_number}: {line.strip()}", mac, current_y, rssi_value]
                     discovered_patterns.append(event_details)
                     events.append(
-                        {"timestamp": timestamp, "status": pattern["status"],
-                         "pattern": f"Line {line_number}: {line.strip()}", "mac": mac, "y": current_y,
-                         "rssi": rssi_value})
+                        {"timestamp": timestamp, "status": pattern["status"], "pattern": f"Line {line_number}: {line.strip()}", "mac": mac, "y": current_y, "rssi": rssi_value})
 
         for pattern in info_patterns:
             match = re.search(pattern["pattern"], line)
@@ -98,10 +95,21 @@ def parse_log(log_path, start_line, end_line):
                     events.append(
                         {"timestamp": timestamp, "status": pattern["status"], "pattern": f"Line {line_number}: {line.strip()}", "mac": current_y, "y": current_y, "name": pattern["name"]})
 
-    return events, mac_addresses, mac_info, discovered_patterns, scanned_lines
+    # Add the "end" point to the events list
+    if last_log_timestamp and events:
+        last_event_y = events[-1]["y"]
+        events.append({
+            "timestamp": last_log_timestamp,
+            "status": "end",
+            "pattern": "End of Log",
+            "mac": None,
+            "y": last_event_y,
+            "rssi": None
+        })
 
+    return events, mac_addresses, mac_info, discovered_patterns, scanned_lines, last_log_timestamp
 
-def create_timeline(events, mac_addresses, mac_info):
+def create_timeline(events, mac_addresses, mac_info, last_log_timestamp):
     y_labels = ["disconnected"] + [mac for _, mac in mac_addresses]
     y_positions = {label: i for i, label in enumerate(y_labels)}
 
@@ -128,9 +136,7 @@ def create_timeline(events, mac_addresses, mac_info):
         status = event["status"]
         pattern = event["pattern"]
         y = y_positions[event["y"]]
-
-        # Only add RSSI text for "Attempt_to_connect" events
-        rssi_text = f"RSSI: {event.get('rssi', '')}" if status == "Attempt_to_connect" else ""
+        rssi_text = event.get("rssi", None) if status == "Attempt_to_connect" else ""
 
         if status == "info":
             for i, info_pattern in enumerate(info_patterns):
@@ -150,7 +156,7 @@ def create_timeline(events, mac_addresses, mac_info):
         connectivity_x_values.append(timestamp)
         connectivity_y_values.append(y)
         connectivity_hover_texts.append(pattern)
-        connectivity_rssi_texts.append(rssi_text)  # Add RSSI text only for "Attempt_to_connect"
+        connectivity_rssi_texts.append(f"RSSI: {rssi_text}" if rssi_text else "")
 
         connectivity_symbols.append('circle')
         if status == "disconnected" or status == "connection_failed":
@@ -192,12 +198,15 @@ def create_timeline(events, mac_addresses, mac_info):
         elif status == "suspend":
             connectivity_colors.append('purple')
             connectivity_line_styles.append('solid')
-            suspend_resume_pairs.append((timestamp, None))
+            suspend_resume_pairs.append((timestamp, timestamp))
         elif status == "resume":
             connectivity_colors.append('blue')
             connectivity_line_styles.append('solid')
             if suspend_resume_pairs:
                 suspend_resume_pairs[-1] = (suspend_resume_pairs[-1][0], timestamp)
+        elif status == "end":
+            connectivity_colors.append('black')
+            connectivity_line_styles.append('solid')
 
     fig = go.Figure()
 
@@ -217,12 +226,11 @@ def create_timeline(events, mac_addresses, mac_info):
                 line=dict(shape='hv', dash=line_style),
                 hovertext=connectivity_hover_texts[i],
                 hoverinfo="text",
-                text=[connectivity_rssi_texts[i], ""],  # RSSI text only for the first point
+                text=["", connectivity_rssi_texts[i]],
                 textposition="top center",
                 name='Connectivity Events',
                 showlegend=False
             ))
-
         else:
             fig.add_trace(go.Scatter(
                 x=[connectivity_x_values[i]],
@@ -231,11 +239,24 @@ def create_timeline(events, mac_addresses, mac_info):
                 marker=dict(color=connectivity_colors[i], symbol=connectivity_symbols[i]),
                 hovertext=connectivity_hover_texts[i],
                 hoverinfo="text",
-                text=connectivity_rssi_texts[i],  # RSSI text is only added for "Attempt_to_connect"
+                text=[connectivity_rssi_texts[i], ""],
                 textposition="top center",
                 name='Connectivity Events',
                 showlegend=False
             ))
+
+    for i, info_pattern in enumerate(info_patterns):
+        fig.add_trace(go.Scatter(
+            x=info_x_values[i],
+            y=info_y_values[i],
+            mode='markers',
+            marker=dict(color='black', symbol=info_symbols[i % len(info_symbols)]),
+            hovertext=info_hover_texts[i],
+            hoverinfo="text",
+            name=f'Info Events: {info_pattern["name"]}',
+            visible=True,
+            showlegend=True
+        ))
 
     for timestamp in vertical_line_timestamps:
         fig.add_shape(type="line",
@@ -305,10 +326,10 @@ def create_timeline(events, mac_addresses, mac_info):
         )
     )
 
-    fig.write_html('wifi_connectivity_timeline.html', auto_open=True, include_plotlyjs='cdn', full_html=False,
-                   config={'scrollZoom': True})
+    fig.write_html('wifi_connectivity_timeline.html', auto_open=True, include_plotlyjs='cdn', full_html=False, config={'scrollZoom': True})
 
     return fig
+
 
 def main():
     debug_mode = '-d' in sys.argv
@@ -334,9 +355,8 @@ def main():
         start_line = int(start_line_input) if start_line_input else 0
         end_line = int(end_line_input) if end_line_input else len(lines)
 
-        events, mac_addresses, mac_info, discovered_patterns, scanned_lines = parse_log(log_path, start_line, end_line)
-
-        fig = create_timeline(events, mac_addresses, mac_info)
+        events, mac_addresses, mac_info, discovered_patterns, scanned_lines, last_log_timestamp = parse_log(log_path,start_line,end_line)
+        fig = create_timeline(events, mac_addresses, mac_info, last_log_timestamp)
 
         pyo.plot(fig, filename='wifi_connectivity_timeline.html', auto_open=True)
 
