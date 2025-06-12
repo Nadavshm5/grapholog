@@ -11,9 +11,7 @@
     {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*DEAUTH - received", "status": "Deauth from Peer"},
     {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*CONNECTION FAILED", "status": "connect_failure"},
     {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*SUSPEND FLOW FINISHED", "status": "suspend"},
-    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*RESUME FLOW FINISHED", "status": "resume"},
-    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*uCode is alive", "status": "uCode alive"},
-    {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*performing lmacStop", "status": "Driver disable"},
+	{"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*RESUME FLOW FINISHED", "status": "resume"},
     {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*\\[ATTEMPT_TO_CONNECT\\]", "status": "Attempt_to_connect"},
     {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*ENCRYPTION READY!!! - For control flows only", "status": "connected"}
   ],
@@ -22,6 +20,8 @@
 	{"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*MisbehavingAP:5", "status": "info","name":"MisbehavingAP"},
 	{"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*Found channel switch announcement", "status": "info","name":"CSA"},
 	{"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*FATAL_ERROR: uCode ASSERT", "status": "info","name":"FW assert"},
+	{"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*uCode is alive", "status": "info","name":"uCode alive"},
+	{"pattern": "(\\d{2}/\\d{2}/\\d{4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*\\[prvhApSelectionPrintBestCandidate\\] ChannelLoad:", "status": "info","name":"AP SELECTION"},
     {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*INDICATION_ROAM_COMPLETE", "status": "info","name":"roam complete"},
     {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*indicating roaming needed", "status": "info","name":"roaming is needed"}
   ],

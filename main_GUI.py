@@ -32,6 +32,7 @@ def parse_log(log_path, start_line, end_line):
     discovered_patterns = []
     scanned_lines = []
     last_log_timestamp = None
+    seen_ap_selection_timestamps = set()  # Track timestamps for "AP selection"
 
     with open(log_path, 'r') as file:
         lines = file.readlines()[start_line:end_line]
@@ -87,11 +88,27 @@ def parse_log(log_path, start_line, end_line):
             match = re.search(pattern["pattern"], line)
             if match:
                 timestamp = datetime.strptime(match.group(1), "%m/%d/%Y-%H:%M:%S.%f")
+                event = pattern['status']
+
                 if current_y is not None:
-                    event_details = [timestamp, pattern['status'], f"Line {line_number}: {line.strip()}", current_y, current_y, pattern['name']]
-                    discovered_patterns.append(event_details)
-                    events.append(
-                        {"timestamp": timestamp, "status": pattern["status"], "pattern": f"Line {line_number}: {line.strip()}", "mac": current_y, "y": current_y, "name": pattern["name"]})
+                    if pattern["name"] != "AP SELECTION":
+                        event_details = [timestamp, pattern['status'], f"Line {line_number}: {line.strip()}", current_y, current_y, pattern['name']]
+                        discovered_patterns.append(event_details)
+                        events.append(
+                            {"timestamp": timestamp, "status": pattern["status"], "pattern": f"Line {line_number}: {line.strip()}", "mac": current_y, "y": current_y, "name": pattern["name"]})
+                    else:
+                        # Check if the event is "AP selection" and if the timestamp has been seen
+                        if pattern["name"] == "AP SELECTION" and timestamp not in seen_ap_selection_timestamps:
+                            event_details = [timestamp, pattern['status'], f"Line {line_number}: {line.strip()}",
+                                             current_y, current_y, pattern['name']]
+                            discovered_patterns.append(event_details)
+                            events.append(
+                                {"timestamp": timestamp, "status": pattern["status"],
+                                 "pattern": f"Line {line_number}: {line.strip()}", "mac": current_y, "y": current_y,
+                                 "name": pattern["name"]})
+                            seen_ap_selection_timestamps.add(timestamp)
+                        else:
+                            continue
 
     # Add the "end" point to the events list
     if last_log_timestamp and events:
@@ -118,6 +135,7 @@ def create_timeline(events, mac_addresses, mac_info, last_log_timestamp):
     connectivity_symbols = []
     connectivity_line_styles = []
     connectivity_rssi_texts = []
+    connectivity_ap_pd_texts = []  # New list for AP PD text
 
     info_x_values = [[] for _ in info_patterns]
     info_y_values = [[] for _ in info_patterns]
@@ -135,6 +153,7 @@ def create_timeline(events, mac_addresses, mac_info, last_log_timestamp):
         pattern = event["pattern"]
         y = y_positions[event["y"]]
         rssi_text = event.get("rssi", None) if status == "Attempt_to_connect" else ""
+        ap_pd_text = event.get("ap_pd_text", "")  # Get AP PD text
 
         if status == "info":
             for i, info_pattern in enumerate(info_patterns):
@@ -237,7 +256,7 @@ def create_timeline(events, mac_addresses, mac_info, last_log_timestamp):
                 marker=dict(color=connectivity_colors[i], symbol=connectivity_symbols[i]),
                 hovertext=connectivity_hover_texts[i],
                 hoverinfo="text",
-                text=[connectivity_rssi_texts[i], ""],
+                text=["", connectivity_rssi_texts[i]],
                 textposition="top center",
                 name='Connectivity Events',
                 showlegend=False
