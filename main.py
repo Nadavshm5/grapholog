@@ -34,6 +34,7 @@ def parse_log(log_path, start_line, end_line):
     discovered_patterns = []
     scanned_lines = []
     last_log_timestamp = None
+    seen_ap_PD_timestamps = set()
 
     with open(log_path, 'r') as file:
         lines = file.readlines()[start_line:end_line]
@@ -89,12 +90,32 @@ def parse_log(log_path, start_line, end_line):
             match = re.search(pattern["pattern"], line)
             if match:
                 timestamp = datetime.strptime(match.group(1), "%m/%d/%Y-%H:%M:%S.%f")
-                if current_y is not None:
-                    event_details = [timestamp, pattern['status'], f"Line {line_number}: {line.strip()}", current_y, current_y, pattern['name']]
-                    discovered_patterns.append(event_details)
-                    events.append(
-                        {"timestamp": timestamp, "status": pattern["status"], "pattern": f"Line {line_number}: {line.strip()}", "mac": current_y, "y": current_y, "name": pattern["name"]})
+                event = pattern['status']
 
+                if current_y is not None:
+                    if pattern["name"] != "AP poorly disc":
+                        event_details = [timestamp, pattern['status'], f"Line {line_number}: {line.strip()}", current_y,
+                                         current_y, pattern['name']]
+                        discovered_patterns.append(event_details)
+                        events.append(
+                            {"timestamp": timestamp, "status": pattern["status"],
+                             "pattern": f"Line {line_number}: {line.strip()}", "mac": current_y, "y": current_y,
+                             "name": pattern["name"]})
+                    else:
+                        # Check if the event is "AP poorly disc" and if the timestamp has been seen
+                        if pattern["name"] == "AP poorly disc":
+                            if timestamp not in seen_ap_PD_timestamps:
+                                # Check for "PoorlyDisc:25" in the line
+                                event_details = [timestamp, pattern['status'], f"Line {line_number}: {line.strip()}",
+                                                 current_y, current_y, pattern['name'], ]
+                                discovered_patterns.append(event_details)
+                                events.append(
+                                    {"timestamp": timestamp, "status": pattern["status"],
+                                     "pattern": f"Line {line_number}: {line.strip()}", "mac": current_y, "y": current_y,
+                                     "name": pattern["name"]})
+                                seen_ap_PD_timestamps.add(timestamp)
+                            else:
+                                continue
     # Add the "end" point to the events list
     if last_log_timestamp and events:
         last_event_y = events[-1]["y"]
@@ -109,7 +130,36 @@ def parse_log(log_path, start_line, end_line):
 
     return events, mac_addresses, mac_info, discovered_patterns, scanned_lines, last_log_timestamp
 
-def create_timeline(events, mac_addresses, mac_info, last_log_timestamp):
+
+def check_flow_validity(events):
+    """
+    Check the validity of the flow according to specified flow rules.
+    If an invalid flow is detected, return True. Otherwise, return False.
+    """
+    invalid_flow_detected = False
+    last_attempt_to_connect_timestamp = None
+
+    for event in events:
+        status = event["status"]
+        y = event["y"]
+
+        # Rule 1: If a connected pattern appears in the "disconnected" mac level.
+        if status == "connected" and y == "disconnected":
+            invalid_flow_detected = True
+            break
+
+        # Rule 2: If "auth_req" pattern is not following "Attempt_to_connect" pattern.
+        if status == "Attempt_to_connect":
+            last_attempt_to_connect_timestamp = event["timestamp"]
+        elif status == "auth_req":
+            if last_attempt_to_connect_timestamp is None or event["timestamp"] <= last_attempt_to_connect_timestamp:
+                invalid_flow_detected = True
+                break
+    return invalid_flow_detected
+
+
+def create_timeline(events, mac_addresses, mac_info, last_log_timestamp, output_filename):
+    invalid_flow_detected = check_flow_validity(events)
     y_labels = ["disconnected"] + [mac for _, mac in mac_addresses]
     y_positions = {label: i for i, label in enumerate(y_labels)}
 
@@ -239,7 +289,7 @@ def create_timeline(events, mac_addresses, mac_info, last_log_timestamp):
                 marker=dict(color=connectivity_colors[i], symbol=connectivity_symbols[i]),
                 hovertext=connectivity_hover_texts[i],
                 hoverinfo="text",
-                text=[connectivity_rssi_texts[i], ""],
+                text=["", connectivity_rssi_texts[i]],
                 textposition="top center",
                 name='Connectivity Events',
                 showlegend=False
@@ -263,6 +313,16 @@ def create_timeline(events, mac_addresses, mac_info, last_log_timestamp):
                       x0=timestamp, x1=timestamp,
                       y0=0, y1=-0.1,
                       line=dict(color="black", width=2))
+
+    # Update the plot title based on flow validity
+    if invalid_flow_detected:
+        fig.add_annotation(
+            text="***Please note,possible log corruption!***",
+            xref="paper", yref="paper",
+            x=0.5, y=1.1,  # Positioning the text above the main title
+            showarrow=False,
+            font=dict(size=16,color="red")
+        )
 
     fig.update_layout(
         title="WiFi Connectivity Timeline",
@@ -326,7 +386,8 @@ def create_timeline(events, mac_addresses, mac_info, last_log_timestamp):
         )
     )
 
-    fig.write_html('wifi_connectivity_timeline.html', auto_open=True, include_plotlyjs='cdn', full_html=False, config={'scrollZoom': True})
+    # Use the output_filename for the HTML file
+    fig.write_html(output_filename, auto_open=True, include_plotlyjs='cdn', full_html=False, config={'scrollZoom': True})
 
     return fig
 
@@ -356,9 +417,12 @@ def main():
         end_line = int(end_line_input) if end_line_input else len(lines)
 
         events, mac_addresses, mac_info, discovered_patterns, scanned_lines, last_log_timestamp = parse_log(log_path,start_line,end_line)
-        fig = create_timeline(events, mac_addresses, mac_info, last_log_timestamp)
+        # Extract the base name of the input file and append "graph"
+        base_name = os.path.splitext(os.path.basename(log_path))[0]
+        output_filename = f"{base_name}_graph.html"
+        fig = create_timeline(events, mac_addresses, mac_info, last_log_timestamp,output_filename)
 
-        pyo.plot(fig, filename='wifi_connectivity_timeline.html', auto_open=True)
+        pyo.plot(fig, filename=output_filename, auto_open=True)
 
         if debug_mode:
             with pd.ExcelWriter('patterns_discovered.xlsx', engine='openpyxl') as writer:

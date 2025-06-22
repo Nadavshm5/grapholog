@@ -21,7 +21,7 @@
 	{"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*Found channel switch announcement", "status": "info","name":"CSA"},
 	{"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*FATAL_ERROR: uCode ASSERT", "status": "info","name":"FW assert"},
 	{"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*uCode is alive", "status": "info","name":"uCode alive"},
-	{"pattern": "(\\d{2}/\\d{2}/\\d{4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*\\[prvhApSelectionPrintBestCandidate\\] ChannelLoad:", "status": "info","name":"AP SELECTION"},
+	{"pattern": "(\\d{2}/\\d{2}/\\d{4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*PoorlyDisc:25", "status": "info","name":"AP poorly disc"},
     {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*INDICATION_ROAM_COMPLETE", "status": "info","name":"roam complete"},
     {"pattern": "(\\d{2}/\\d{2}/\\d{2,4}-\\d{2}:\\d{2}:\\d{2}\\.\\d{3}).*indicating roaming needed", "status": "info","name":"roaming is needed"}
   ],
