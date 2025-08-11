@@ -8,6 +8,7 @@ import plotly.offline as pyo
 import subprocess
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QFileDialog, QLineEdit, QLabel
 from PyQt5.QtGui import QIcon
+import chardet
 
 # Load patterns from JSON file
 def load_patterns():
@@ -34,8 +35,16 @@ def parse_log(log_path, start_line, end_line):
     last_log_timestamp = None
     seen_ap_PD_timestamps = set()
 
-    with open(log_path, 'r') as file:
+
+    with open(log_path, 'rb') as file:
+       raw_data = file.read()
+       result = chardet.detect(raw_data)
+       encoding = result['encoding']
+       #print(f"Detected encoding: {encoding}")
+
+    with open(log_path, 'r', encoding=encoding) as file:
         lines = file.readlines()[start_line:end_line]
+        
 
     for line_number, line in enumerate(lines, start=start_line):
         scanned_lines.append((line_number, line.strip()))
@@ -468,7 +477,7 @@ class LogAnalyzerApp(QWidget):
                 self.process_log_file(log_path)
 
     def process_log_file(self, log_path):
-        with open(log_path, 'r') as file:
+        with open(log_path, 'r', encoding='utf-8', errors='ignore') as file:
             lines = file.readlines()
 
         try:

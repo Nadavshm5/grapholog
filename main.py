@@ -6,6 +6,7 @@ import sys
 from datetime import datetime
 import plotly.graph_objects as go
 import plotly.offline as pyo
+import chardet
 
 # Load patterns from JSON file
 def load_patterns():
@@ -36,7 +37,13 @@ def parse_log(log_path, start_line, end_line):
     last_log_timestamp = None
     seen_ap_PD_timestamps = set()
 
-    with open(log_path, 'r') as file:
+    with open(log_path, 'rb') as file:
+        raw_data = file.read()
+        result = chardet.detect(raw_data)
+        encoding = result['encoding']
+        #print(f"Detected encoding: {encoding}")
+
+    with open(log_path, 'r', encoding=encoding) as file:
         lines = file.readlines()[start_line:end_line]
 
     for line_number, line in enumerate(lines, start=start_line):
@@ -403,7 +410,7 @@ def main():
         else:
             log_path = input("Enter the log file path: ")
 
-        with open(log_path, 'r') as file:
+        with open(log_path, 'r', encoding='utf-8', errors='ignore') as file:
             lines = file.readlines()
 
         if lines_mode:
